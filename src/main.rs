@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use chrono::prelude::Utc;
 use chrono_tz::US::Pacific;
 use tokio::time::{sleep, Duration};
+use std::fs;
 
 #[derive(Deserialize, Debug)]
 struct PlaybackData {
@@ -50,8 +51,6 @@ const BASE_URL: &str = "https://fastball-gateway.mlb.com/graphql";
 
 const SEARCH_QUERY: &str = "query Search($query: String!, $page: Int, $limit: Int, $feedPreference: FeedPreference, $languagePreference: LanguagePreference, $contentPreference: ContentPreference) { search(query: $query, limit: $limit, page: $page, feedPreference: $feedPreference, languagePreference: $languagePreference, contentPreference: $contentPreference) { plays { mediaPlayback { ...MediaPlaybackFields __typename } __typename } total __typename } } fragment MediaPlaybackFields on MediaPlayback { id description feeds { type playbacks { name url __typename } __typename } __typename }";
 
-const SLACK_WEBHOOK: &str = "https://hooks.slack.com/services/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";
-
 async fn query_mlb(client: &reqwest::Client) -> Result<GraphQLResponse, Box<dyn std::error::Error>> {
     let query = format!(
         "HitResult = [\"Home Run\"] AND Date = [\"{}\"] Order By Timestamp DESC",
@@ -89,7 +88,8 @@ fn build_slack_request(playback: &MediaPlaybackData) -> Result<Value, Box<dyn st
 }
 
 async fn send_slack(client: &reqwest::Client, slack_post: &Value) -> Result<String, Box<dyn std::error::Error>> {
-    Ok(client.post(SLACK_WEBHOOK)
+    let slack_webhook = fs::read_to_string("slack_hook.txt").unwrap();
+    Ok(client.post(slack_webhook.trim())
        .header(reqwest::header::USER_AGENT, "HomeRunBot/1.0")
        .json(slack_post)
        .send()
